@@ -7,3 +7,4 @@ psycopg2-binary
 numpy
 face-recognition
 opencv-python-headless
+git+https://github.com/ageitgey/face_recognition_models.git
