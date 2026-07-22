@@ -22,7 +22,7 @@ def get_db_connection():
             host=DB_HOST,
             database=DB_NAME,
             user=DB_USER,
-            password=DB_PASSWORD
+            password=DB_PASSWORD,
             port=DB_PORT
         )
         return conn
