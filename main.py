@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from register import router as register_router
 from verify import router as verify_router
-from delete import router as delete_router   # <-- Naya Router Import Kiya
+from delete import router as delete_router   
 
 # Initialize FastAPI App
 app = FastAPI(
@@ -25,9 +25,9 @@ app.include_router(register_router)
 app.include_router(verify_router)
 app.include_router(delete_router)    
 
-# Health Check Route for server monitoring
+
 @app.get("/")
-def health_check():
+def check():
     return {
         "success": True, 
         "msg": "Face Recognition API is online ."

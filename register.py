@@ -21,23 +21,12 @@ s3_client = boto3.client(
 
 router = APIRouter()
 
-def background_training(employee_id: str, name: str, rgb_frames: list, face_locations_list: list, raw_files: list, filenames: list):
+def background_training(employee_id: str, name: str, encodings_list: list, raw_files: list, filenames: list):
     print(f"\n{'-'*50}")
-    print(f"[BACKGROUND] Extracting AI spatial features for ID: {employee_id}...")
+    print(f"[BACKGROUND] Saving AI spatial features for ID: {employee_id}...")
 
-    # Step 1: Extract 128-d face encodings
-    new_encodings = []
-    for i, frame in enumerate(rgb_frames):
-        encodings = face_recognition.face_encodings(frame, face_locations_list[i])
-        if encodings:
-            new_encodings.append(encodings[0])
-
-    if not new_encodings:
-        print(f"[ERROR] Failed to generate valid encodings for ID: {employee_id}")
-        return
-
-    # Calculate the mean encoding to create a robust master profile
-    master_encoding = np.mean(new_encodings, axis=0).tolist()
+    # Calculate the mean encoding directly (since the array is already processed)
+    master_encoding = np.mean(encodings_list, axis=0).tolist()
 
     # Step 2: Persist master encoding to Vector Database
     try:
@@ -87,7 +76,7 @@ async def register_employee(
         return {"success": False, "msg": "Invalid request. Missing required parameters or image payloads."}
 
     files = [file0, file1, file2]
-    rgb_frames, face_locations_list, raw_files, filenames = [], [], [], []
+    encodings_list, raw_files, filenames = [], [], []
 
     print("[INFO] Validating and optimizing image payloads in memory...")
     for i, f in enumerate(files):
@@ -113,11 +102,21 @@ async def register_employee(
         if not face_locations or len(face_locations) > 1: 
             return {"success": False, "msg": f"Facial detection failed for file{i}. Ensure a single, clearly visible face."}
 
-        rgb_frames.append(rgb_frame)
-        face_locations_list.append(face_locations)
+        # Extract 128-d face encoding immediately
+        current_encoding = face_recognition.face_encodings(rgb_frame, face_locations)[0]
+
+        # Security Lock: Compare 2nd and 3rd photo with the 1st photo (index 0)
+        if i > 0:
+            is_match = face_recognition.compare_faces([encodings_list[0]], current_encoding, tolerance=0.6)[0]
+            if not is_match:
+                print(f"[WARNING] Identity mismatch detected in file{i}!")
+                return {"success": False, "msg": "Security Alert: All 3 photos must belong to the exact same person."}
+
+        # If it's a match, append to the list
+        encodings_list.append(current_encoding)
 
     # Offload heavy computation and I/O operations to background workers
-    background_tasks.add_task(background_training, employee_id, name, rgb_frames, face_locations_list, raw_files, filenames)
+    background_tasks.add_task(background_training, employee_id, name, encodings_list, raw_files, filenames)   
     
     print("[INFO] Validation successful. Returning immediate response to client.")
     print(f"{'-'*50}")
